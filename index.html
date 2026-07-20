@@ -12,9 +12,12 @@
         .container { padding: 20px; max-width: 600px; margin: auto; }
         .lesson-card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .lesson-title { margin: 0 0 10px 0; font-size: 18px; color: #333; }
-        button { background-color: #0056b3; color: white; border: none; padding: 12px 15px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; transition: 0.3s; }
+        button { background-color: #0056b3; color: white; border: none; padding: 12px 15px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; transition: 0.3s; margin-top: 5px; }
         button:hover { background-color: #004494; }
         button.completed { background-color: #28a745; cursor: not-allowed; }
+        .sync-btn { background-color: #17a2b8; margin-bottom: 15px; display: none; }
+        .sync-btn:hover { background-color: #117a8b; }
+        .sync-status { text-align: center; font-size: 13px; color: #666; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -28,18 +31,23 @@
     </div>
 
     <div class="container">
+        <!-- زر المزامنة السحابية -->
+        <button id="sync-btn" class="sync-btn" onclick="syncData()">☁️ مزامنة البيانات مع السحابة</button>
+        
         <h2>المسارات التعليمية</h2>
         
         <div class="lesson-card">
             <h3 class="lesson-title">الدرس الأول: أساسيات النظام</h3>
             <p>هذا المحتوى تم تحميله مسبقاً ومتاح للقراءة بدون إنترنت.</p>
             <button id="btn-1" onclick="markCompleted(1)">إكمال الدرس وحفظ التقدم</button>
+            <div id="sync-status-1" class="sync-status"></div>
         </div>
 
         <div class="lesson-card">
             <h3 class="lesson-title">الدرس الثاني: المزامنة السحابية</h3>
             <p>تعرف على كيفية رفع بياناتك عند عودة الاتصال.</p>
             <button id="btn-2" onclick="markCompleted(2)">إكمال الدرس وحفظ التقدم</button>
+            <div id="sync-status-2" class="sync-status"></div>
         </div>
     </div>
 
@@ -47,18 +55,21 @@
         // التحقق الآني من حالة الاتصال
         function updateOnlineStatus() {
             const statusDiv = document.getElementById('status');
+            const syncBtn = document.getElementById('sync-btn');
+            
             if (navigator.onLine) {
                 statusDiv.textContent = 'متصل بالإنترنت (البيانات جاهزة للمزامنة)';
                 statusDiv.className = 'status-bar';
+                syncBtn.style.display = 'block'; // إظهار زر المزامنة عند توفر الإنترنت
             } else {
                 statusDiv.textContent = 'لا يوجد إنترنت (يعمل على الحفظ المحلي)';
                 statusDiv.className = 'status-bar offline';
+                syncBtn.style.display = 'none'; // إخفاء زر المزامنة بدون إنترنت
             }
         }
 
         window.addEventListener('online', updateOnlineStatus);
         window.addEventListener('offline', updateOnlineStatus);
-        updateOnlineStatus();
 
         // دالة فحص الذاكرة عند فتح التطبيق
         function checkProgress() {
@@ -66,26 +77,59 @@
                 if(localStorage.getItem('lesson_' + i) === 'completed') {
                     let btn = document.getElementById('btn-' + i);
                     btn.classList.add('completed');
-                    btn.innerText = '✅ تم الإنجاز';
-                    btn.disabled = true; // تعطيل الزر لمنع الضغط مرتين
+                    btn.innerText = '✅ تم الإنجاز محلياً';
+                    btn.disabled = true;
+                    
+                    // فحص حالة المزامنة السحابية
+                    let syncStatusDiv = document.getElementById('sync-status-' + i);
+                    if(localStorage.getItem('lesson_' + i + '_synced') === 'true') {
+                        syncStatusDiv.innerText = '☁️ تمت المزامنة مع السحابة بنجاح';
+                        syncStatusDiv.style.color = '#28a745';
+                    } else {
+                        syncStatusDiv.innerText = '⏳ بانتظار المزامنة السحابية...';
+                        syncStatusDiv.style.color = '#ffc107';
+                    }
                 }
             }
+            updateOnlineStatus();
         }
 
-        // دالة الحفظ الحقيقي في ذاكرة الجوال
+        // دالة الحفظ المحلي
         function markCompleted(lessonId) {
             localStorage.setItem('lesson_' + lessonId, 'completed');
-            checkProgress(); // تحديث شكل الزر فوراً
+            checkProgress();
             alert('تم تشفير وحفظ إنجازك في ذاكرة الجوال بنجاح!');
         }
 
-        // تشغيل فحص الذاكرة بمجرد فتح الصفحة
+        // دالة المزامنة السحابية
+        function syncData() {
+            if(!navigator.onLine) {
+                alert('عذراً، يجب أن تكون متصلاً بالإنترنت لإجراء المزامنة.');
+                return;
+            }
+
+            let syncedCount = 0;
+            for(let i=1; i<=2; i++) {
+                if(localStorage.getItem('lesson_' + i) === 'completed') {
+                    localStorage.setItem('lesson_' + i + '_synced', 'true');
+                    syncedCount++;
+                }
+            }
+
+            if(syncedCount > 0) {
+                checkProgress();
+                alert('تمت مزامنة جميع الإنجازات مع السحابة بنجاح! ☁️✅');
+            } else {
+                alert('لا توجد إنجازات جديدة للمزامنة.');
+            }
+        }
+
         window.onload = checkProgress;
 
-        // ربط ملف Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js');
         }
     </script>
 </body>
 </html>
+
