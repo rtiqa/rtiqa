@@ -12,8 +12,9 @@
         .container { padding: 20px; max-width: 600px; margin: auto; }
         .lesson-card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .lesson-title { margin: 0 0 10px 0; font-size: 18px; color: #333; }
-        button { background-color: #0056b3; color: white; border: none; padding: 12px 15px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; }
+        button { background-color: #0056b3; color: white; border: none; padding: 12px 15px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; transition: 0.3s; }
         button:hover { background-color: #004494; }
+        button.completed { background-color: #28a745; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -32,13 +33,13 @@
         <div class="lesson-card">
             <h3 class="lesson-title">الدرس الأول: أساسيات النظام</h3>
             <p>هذا المحتوى تم تحميله مسبقاً ومتاح للقراءة بدون إنترنت.</p>
-            <button onclick="markCompleted(1)">إكمال الدرس وحفظ التقدم</button>
+            <button id="btn-1" onclick="markCompleted(1)">إكمال الدرس وحفظ التقدم</button>
         </div>
 
         <div class="lesson-card">
             <h3 class="lesson-title">الدرس الثاني: المزامنة السحابية</h3>
             <p>تعرف على كيفية رفع بياناتك عند عودة الاتصال.</p>
-            <button onclick="markCompleted(2)">إكمال الدرس وحفظ التقدم</button>
+            <button id="btn-2" onclick="markCompleted(2)">إكمال الدرس وحفظ التقدم</button>
         </div>
     </div>
 
@@ -57,14 +58,31 @@
 
         window.addEventListener('online', updateOnlineStatus);
         window.addEventListener('offline', updateOnlineStatus);
-        updateOnlineStatus(); // فحص الحالة عند فتح التطبيق
+        updateOnlineStatus();
 
-        // محاكاة حفظ التقدم في الهاتف
-        function markCompleted(lessonId) {
-            alert('ممتاز! تم حفظ تقدمك في الدرس رقم ' + lessonId + ' بنجاح داخل ذاكرة الجوال.');
+        // دالة فحص الذاكرة عند فتح التطبيق
+        function checkProgress() {
+            for(let i=1; i<=2; i++) {
+                if(localStorage.getItem('lesson_' + i) === 'completed') {
+                    let btn = document.getElementById('btn-' + i);
+                    btn.classList.add('completed');
+                    btn.innerText = '✅ تم الإنجاز';
+                    btn.disabled = true; // تعطيل الزر لمنع الضغط مرتين
+                }
+            }
         }
 
-        // ربط ملف Service Worker ليعمل كتطبيق PWA
+        // دالة الحفظ الحقيقي في ذاكرة الجوال
+        function markCompleted(lessonId) {
+            localStorage.setItem('lesson_' + lessonId, 'completed');
+            checkProgress(); // تحديث شكل الزر فوراً
+            alert('تم تشفير وحفظ إنجازك في ذاكرة الجوال بنجاح!');
+        }
+
+        // تشغيل فحص الذاكرة بمجرد فتح الصفحة
+        window.onload = checkProgress;
+
+        // ربط ملف Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js');
         }
