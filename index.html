@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة رتقا - Rtiqa</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; text-align: center; }
+        .card { background: white; border-radius: 12px; padding: 20px; margin: 15px auto; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .status { padding: 8px 12px; border-radius: 20px; font-weight: bold; display: inline-block; margin-bottom: 15px; }
+        .online { background-color: #e6f4ea; color: #137333; }
+        .offline { background-color: #fce8e6; color: #c5221f; }
+        button { background-color: #0066cc; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>منصة رتقا الرقمية</h2>
+        <div id="netStatus" class="status online">جاري التحقق من الاتصال...</div>
+        <hr>
+        <h3>المحتوى التعليمي (بدون إنترنت)</h3>
+        <p>تم تحميل هذا المحتوى بنجاح ويمكنك قراءته حتى لو كنت خارج التغطية.</p>
+        <button onclick="saveProgress()">حفظ التقدم محلياً</button>
+        <p id="msg" style="color: green; margin-top: 10px;"></p>
+    </div>
+
+    <script>
+        function updateStatus() {
+            const statusDiv = document.getElementById('netStatus');
+            if (navigator.onLine) {
+                statusDiv.className = 'status online';
+                statusDiv.innerText = 'متصل بالإنترنت (جاهز للمزامنة)';
+            } else {
+                statusDiv.className = 'status offline';
+                statusDiv.innerText = 'يعمل بدون إنترنت (موضع الحفظ المحلي)';
+            }
+        }
+
+        window.addEventListener('online', updateStatus);
+        window.addEventListener('offline', updateStatus);
+        updateStatus();
+
+        function saveProgress() {
+            localStorage.setItem('rtiqa_progress', 'تم اكتمال الدرس الأول');
+            document.getElementById('msg').innerText = 'تم حفظ تقدمك في ذاكرة الهاتف بنجاح!';
+        }
+    </script>
+</body>
+</html>
+
