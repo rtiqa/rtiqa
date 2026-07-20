@@ -3,55 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منصة رتقا - Rtiqa</title>
+    <title>منصة رتقا</title>
     <style>
-        body { font-family: sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; text-align: center; }
-        .card { background: white; border-radius: 12px; padding: 20px; margin: 15px auto; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .status { padding: 8px 12px; border-radius: 20px; font-weight: bold; display: inline-block; margin-bottom: 15px; }
-        .online { background-color: #e6f4ea; color: #137333; }
-        .offline { background-color: #fce8e6; color: #c5221f; }
-        button { background-color: #0066cc; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; }
+        body { font-family: sans-serif; background-color: #f4f4f9; margin: 0; padding: 0; }
+        .header { background-color: #0056b3; color: white; padding: 15px; text-align: center; }
+        .status-bar { background-color: #28a745; color: white; text-align: center; padding: 8px; font-size: 14px; font-weight: bold; }
+        .offline { background-color: #dc3545; }
+        .container { padding: 20px; max-width: 600px; margin: auto; }
+        .lesson-card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .lesson-title { margin: 0 0 10px 0; font-size: 18px; color: #333; }
+        button { background-color: #0056b3; color: white; border: none; padding: 12px 15px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; }
+        button:hover { background-color: #004494; }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h2>منصة رتقا الرقمية</h2>
-        <div id="netStatus" class="status online">جاري التحقق من الاتصال...</div>
-        <hr>
-        <h3>المحتوى التعليمي (بدون إنترنت)</h3>
-        <p>تم تحميل هذا المحتوى بنجاح ويمكنك قراءته حتى لو كنت خارج التغطية.</p>
-        <button onclick="saveProgress()">حفظ التقدم محلياً</button>
-        <p id="msg" style="color: green; margin-top: 10px;"></p>
+    <div class="header">
+        <h1>منصة رتقا</h1>
+    </div>
+    
+    <div id="status" class="status-bar">
+        جاري التحقق من الشبكة...
+    </div>
+
+    <div class="container">
+        <h2>المسارات التعليمية</h2>
+        
+        <div class="lesson-card">
+            <h3 class="lesson-title">الدرس الأول: أساسيات النظام</h3>
+            <p>هذا المحتوى تم تحميله مسبقاً ومتاح للقراءة بدون إنترنت.</p>
+            <button onclick="markCompleted(1)">إكمال الدرس وحفظ التقدم</button>
+        </div>
+
+        <div class="lesson-card">
+            <h3 class="lesson-title">الدرس الثاني: المزامنة السحابية</h3>
+            <p>تعرف على كيفية رفع بياناتك عند عودة الاتصال.</p>
+            <button onclick="markCompleted(2)">إكمال الدرس وحفظ التقدم</button>
+        </div>
     </div>
 
     <script>
-        function updateStatus() {
-            const statusDiv = document.getElementById('netStatus');
+        // التحقق الآني من حالة الاتصال
+        function updateOnlineStatus() {
+            const statusDiv = document.getElementById('status');
             if (navigator.onLine) {
-                statusDiv.className = 'status online';
-                statusDiv.innerText = 'متصل بالإنترنت (جاهز للمزامنة)';
+                statusDiv.textContent = 'متصل بالإنترنت (البيانات جاهزة للمزامنة)';
+                statusDiv.className = 'status-bar';
             } else {
-                statusDiv.className = 'status offline';
-                statusDiv.innerText = 'يعمل بدون إنترنت (موضع الحفظ المحلي)';
+                statusDiv.textContent = 'لا يوجد إنترنت (يعمل على الحفظ المحلي)';
+                statusDiv.className = 'status-bar offline';
             }
         }
 
-        window.addEventListener('online', updateStatus);
-        window.addEventListener('offline', updateStatus);
-        updateStatus();
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus(); // فحص الحالة عند فتح التطبيق
 
-        function saveProgress() {
-            localStorage.setItem('rtiqa_progress', 'تم اكتمال الدرس الأول');
-            document.getElementById('msg').innerText = 'تم حفظ تقدمك في ذاكرة الهاتف بنجاح!';
+        // محاكاة حفظ التقدم في الهاتف
+        function markCompleted(lessonId) {
+            alert('ممتاز! تم حفظ تقدمك في الدرس رقم ' + lessonId + ' بنجاح داخل ذاكرة الجوال.');
+        }
+
+        // ربط ملف Service Worker ليعمل كتطبيق PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js');
         }
     </script>
-  <script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js');
-  }
-      </script>
- 
 </body>
 </html>
-
