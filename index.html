@@ -46,6 +46,12 @@
             document.getElementById('msg').innerText = 'تم حفظ تقدمك في ذاكرة الهاتف بنجاح!';
         }
     </script>
+  <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js');
+  }
+      </script>
+ 
 </body>
 </html>
 
