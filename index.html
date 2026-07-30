@@ -3,133 +3,460 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منصة رتقا</title>
+    <title>منصة إدارة العمليات الذكية - SPA</title>
     <style>
-        body { font-family: sans-serif; background-color: #f4f4f9; margin: 0; padding: 0; }
-        .header { background-color: #0056b3; color: white; padding: 15px; text-align: center; }
-        .status-bar { background-color: #28a745; color: white; text-align: center; padding: 8px; font-size: 14px; font-weight: bold; }
-        .offline { background-color: #dc3545; }
-        .container { padding: 20px; max-width: 600px; margin: auto; }
-        .lesson-card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .lesson-title { margin: 0 0 10px 0; font-size: 18px; color: #333; }
-        button { background-color: #0056b3; color: white; border: none; padding: 12px 15px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; transition: 0.3s; margin-top: 5px; }
-        button:hover { background-color: #004494; }
-        button.completed { background-color: #28a745; cursor: not-allowed; }
-        .sync-btn { background-color: #17a2b8; margin-bottom: 15px; display: none; }
-        .sync-btn:hover { background-color: #117a8b; }
-        .sync-status { text-align: center; font-size: 13px; color: #666; margin-top: 5px; }
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f8fafc;
+            --surface: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --online-bg: #ecfdf5;
+            --online-color: #047857;
+            --online-dot: #10b981;
+            --offline-bg: #fffbeb;
+            --offline-color: #b45309;
+            --offline-dot: #f59e0b;
+            --danger-color: #dc2626;
+            --success-color: #16a34a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 1. الشريط العلوي العام للتنقل (Header & Nav Tabs) */
+        .navbar {
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-logo {
+            width: 36px;
+            height: 36px;
+            background-color: var(--primary);
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .brand-title { font-size: 1.1rem; font-weight: 700; }
+
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+            list-style: none;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .nav-link.active, .nav-link:hover {
+            color: var(--primary);
+            background-color: #eff6ff;
+        }
+
+        .network-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        .network-status.online { background-color: var(--online-bg); color: var(--online-color); }
+        .network-status.online .status-dot { background-color: var(--online-dot); box-shadow: 0 0 6px var(--online-dot); }
+
+        .network-status.offline { background-color: var(--offline-bg); color: var(--offline-color); }
+        .network-status.offline .status-dot { background-color: var(--offline-dot); box-shadow: 0 0 6px var(--offline-dot); }
+
+        /* 2. التحكم في عرض أقسام الصفحة (SPA Tab Contents) */
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px 20px;
+            flex-grow: 1;
+        }
+
+        .tab-content {
+            display: none; /* إخفاء الشاشات بشكل افتراضي */
+        }
+
+        .tab-content.active {
+            display: block; /* إظهار الشاشة النشطة فقط */
+            animation: fadeIn 0.25s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* تنسيقات المكونات المشتركة */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary:hover { background-color: var(--primary-hover); }
+
+        /* تنسيق جدول عام */
+        .app-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .app-table th, .app-table td {
+            padding: 12px 10px;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .app-table th { background-color: #f8fafc; color: var(--text-muted); font-weight: 600; }
+
+        .badge { padding: 3px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; }
+        .badge-success { background-color: #ecfdf5; color: #047857; }
+        .badge-warning { background-color: #fef3c7; color: #92400e; }
+
+        /* شاشة 1: Dashboard Styles */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .quick-actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .action-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; }
+        .action-card:hover { border-color: var(--primary); transform: translateY(-3px); }
+
+        /* شاشة 3: Products Styles */
+        .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+        .product-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+
+        /* النوافذ المنبثقة (Modals) */
+        .modal-overlay {
+            position: fixed; top:0; left:0; right:0; bottom:0;
+            background: rgba(0,0,0,0.4); display: none;
+            justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-card { background: var(--surface); padding: 24px; border-radius: 12px; width: 90%; max-width: 440px; }
+        .form-group { margin-bottom: 12px; }
+        .form-label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; }
+        .form-input, .form-select { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; }
+
+        @media (max-width: 768px) {
+            .nav-tabs { display: none; } /* يمكن ربطها بقائمة سفلية للهاتف */
+        }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h1>منصة رتقا</h1>
-    </div>
-    
-    <div id="status" class="status-bar">
-        جاري التحقق من الشبكة...
-    </div>
-
-    <div class="container">
-        <!-- زر المزامنة السحابية -->
-        <button id="sync-btn" class="sync-btn" onclick="syncData()">☁️ مزامنة البيانات مع السحابة</button>
-        
-        <h2>المسارات التعليمية</h2>
-        
-        <div class="lesson-card">
-            <h3 class="lesson-title">الدرس الأول: أساسيات النظام</h3>
-            <p>هذا المحتوى تم تحميله مسبقاً ومتاح للقراءة بدون إنترنت.</p>
-            <button id="btn-1" onclick="markCompleted(1)">إكمال الدرس وحفظ التقدم</button>
-            <div id="sync-status-1" class="sync-status"></div>
+    <!-- الشريط العلوي للتنقل ومؤشر الشبكة -->
+    <header class="navbar">
+        <div class="nav-brand">
+            <div class="brand-logo">S</div>
+            <h1 class="brand-title">منصة إدارة العمليات الذكية</h1>
         </div>
 
-        <div class="lesson-card">
-            <h3 class="lesson-title">الدرس الثاني: المزامنة السحابية</h3>
-            <p>تعرف على كيفية رفع بياناتك عند عودة الاتصال.</p>
-            <button id="btn-2" onclick="markCompleted(2)">إكمال الدرس وحفظ التقدم</button>
-            <div id="sync-status-2" class="sync-status"></div>
+        <!-- القوائم العلوي للتنقل بين الشاشات (Tabs) -->
+        <ul class="nav-tabs">
+            <li><a class="nav-link active" data-tab="dashboard">اللوحة الرئيسية</a></li>
+            <li><a class="nav-link" data-tab="sales">تسجيل المبيعات</a></li>
+            <li><a class="nav-link" data-tab="products">إدارة المنتجات</a></li>
+            <li><a class="nav-link" data-tab="accounts">إدارة الحسابات</a></li>
+        </ul>
+
+        <div class="network-status online" id="globalNetStatus">
+            <span class="status-dot"></span>
+            <span id="globalNetText">متصل (Online)</span>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <!-- ==================== الشاشة الأولى: اللوحة الرئيسية (Dashboard) ==================== -->
+        <section id="tab-dashboard" class="tab-content active">
+            <div style="margin-bottom: 20px;">
+                <h2>اللوحة الرئيسية</h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">ملخص أداء النظام والإحصائيات الحية.</p>
+            </div>
+
+            <!-- بطاقات الإحصائيات -->
+            <div class="stats-grid">
+                <div class="card">
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">إجمالي مبيعات اليوم</span>
+                    <h3 style="font-size: 1.5rem; margin-top: 6px;" id="dashTotalSales">0 ريال</h3>
+                </div>
+                <div class="card">
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">عدد العمليات المسجلة</span>
+                    <h3 style="font-size: 1.5rem; margin-top: 6px;" id="dashTxnCount">0</h3>
+                </div>
+                <div class="card">
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">طابور الأوفلاين المعلق</span>
+                    <h3 style="font-size: 1.5rem; margin-top: 6px; color: var(--offline-color);" id="dashOfflineCount">0</h3>
+                </div>
+                <div class="card">
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">إجمالي الحسابات النشطة</span>
+                    <h3 style="font-size: 1.5rem; margin-top: 6px;" id="dashAccountsCount">0</h3>
+                </div>
+            </div>
+
+            <!-- بطاقات الوصول السريع -->
+            <h3>الإجراءات السريعة</h3>
+            <div class="quick-actions-grid" style="margin-top: 12px;">
+                <div class="action-card" onclick="switchTab('sales')">
+                    <h4>💰 تسجيل عملية بيع</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">إدخال عملية بيع مع دعم الحفظ المحلي للأوفلاين.</p>
+                </div>
+                <div class="action-card" onclick="switchTab('products')">
+                    <h4>📦 إدارة المنتجات والمخزون</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">التحكم في المخزون، وتحديث الكميات والأسعار.</p>
+                </div>
+                <div class="action-card" onclick="switchTab('accounts')">
+                    <h4>👥 إدارة العملاء والموردين</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">عرض الأرصدة وإضافة وتعديل حسابات المتعاملين.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== الشاشة الثانية: تسجيل المبيعات الأوفلاين ==================== -->
+        <section id="tab-sales" class="tab-content">
+            <div style="max-width: 550px; margin: 0 auto;">
+                <div class="card">
+                    <h2 style="margin-bottom: 16px;">تسجيل عملية بيع جديدة</h2>
+                    <form id="salesForm">
+                        <div class="form-group">
+                            <label class="form-label">اسم/رمز الحساب</label>
+                            <input type="text" id="saleAccount" class="form-input" value="حساب العميل" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">المبلغ (ريال)</label>
+                            <input type="number" id="saleAmount" class="form-input" value="15000" required>
+                        </div>
+                        <button type="submit" class="btn-primary" style="width: 100%;">تسجيل العملية</button>
+                    </form>
+
+                    <div style="margin-top: 16px; padding: 10px; background: #fff7ed; border-radius: 8px; color: #c2410c; display: flex; justify-content: space-between; font-size: 0.85rem;">
+                        <span>طابور المزامنة المحلي (Offline Queue):</span>
+                        <strong class="queue-counter-badge">0</strong>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 style="font-size: 1rem; margin-bottom: 12px;">سجل العمليات المعلقة في التخزين المحلي</h3>
+                    <table class="app-table">
+                        <thead>
+                            <tr>
+                                <th>الحساب</th>
+                                <th>المبلغ</th>
+                                <th>الوقت</th>
+                                <th>الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesQueueTableBody">
+                            <!-- تعبئة صفوف الطابور عبر JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== الشاشة الثالثة: إدارة المنتجات والمخزون ==================== -->
+        <section id="tab-products" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                <h2>إدارة المنتجات والمخزون</h2>
+                <button class="btn-primary" id="openAddProductModal">+ إضافة منتج جديد</button>
+            </div>
+
+            <div class="card" style="display: flex; gap: 12px; flex-wrap: wrap; padding: 12px;">
+                <input type="text" id="productSearch" class="form-input" style="flex-grow: 1;" placeholder="ابحث باسم المنتج أو الفئة...">
+                <select id="productCatFilter" class="form-select" style="width: 180px;">
+                    <option value="">جميع الفئات</option>
+                    <option value="إلكترونيات">إلكترونيات</option>
+                    <option value="مستلزمات مكتبية">مستلزمات مكتبية</option>
+                </select>
+            </div>
+
+            <div class="products-grid" id="productsGridContainer">
+                <!-- كروت المنتجات الجاهزة عبر JS -->
+            </div>
+        </section>
+
+        <!-- ==================== الشاشة الرابعة: إدارة الحسابات والعملاء ==================== -->
+        <section id="tab-accounts" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                <h2>إدارة الحسابات والعملاء والموردين</h2>
+                <button class="btn-primary" id="openAddAccountModal">+ إضافة حساب جديد</button>
+            </div>
+
+            <div class="card" style="display: flex; gap: 12px; flex-wrap: wrap; padding: 12px;">
+                <input type="text" id="accountSearch" class="form-input" style="flex-grow: 1;" placeholder="ابحث باسم الحساب...">
+                <select id="accountTypeFilter" class="form-select" style="width: 180px;">
+                    <option value="ALL">جميع الحسابات</option>
+                    <option value="CUSTOMER">العملاء</option>
+                    <option value="SUPPLIER">الموردون</option>
+                </select>
+            </div>
+
+            <div class="card" style="padding: 0; overflow: hidden;">
+                <table class="app-table">
+                    <thead>
+                        <tr>
+                            <th>رمز الحساب</th>
+                            <th>اسم الحساب</th>
+                            <th>النوع</th>
+                            <th>الرصيد المالي</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accountsTableBody">
+                        <!-- تعبئة صفوف الحسابات عبر JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal 1: إضافة منتج -->
+    <div class="modal-overlay" id="productModal">
+        <div class="modal-card">
+            <h3 style="margin-bottom: 12px;">إضافة منتج جديد</h3>
+            <form id="addProductForm">
+                <div class="form-group">
+                    <label class="form-label">اسم المنتج</label>
+                    <input type="text" id="pName" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">الفئة</label>
+                    <input type="text" id="pCategory" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">السعر (ريال)</label>
+                    <input type="number" id="pPrice" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">الكمية</label>
+                    <input type="number" id="pStock" class="form-input" required>
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">حفظ المنتج</button>
+                <button type="button" class="btn-primary" id="closeProductModal" style="width: 100%; margin-top: 6px; background: #64748b;">إلغاء</button>
+            </form>
         </div>
     </div>
 
+    <!-- Modal 2: إضافة حساب -->
+    <div class="modal-overlay" id="accountModal">
+        <div class="modal-card">
+            <h3 style="margin-bottom: 12px;">إضافة حساب جديد</h3>
+            <form id="addAccountForm">
+                <div class="form-group">
+                    <label class="form-label">اسم الحساب</label>
+                    <input type="text" id="accName" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">النوع</label>
+                    <select id="accType" class="form-select">
+                        <option value="CUSTOMER">عميل</option>
+                        <option value="SUPPLIER">مورد</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">الرصيد الافتتاحي</label>
+                    <input type="number" id="accBalance" class="form-input" value="0" required>
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">حفظ الحساب</button>
+                <button type="button" class="btn-primary" id="closeAccountModal" style="width: 100%; margin-top: 6px; background: #64748b;">إلغاء</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- المحرك البرمجي الشامل للـ SPA وتتبع المزامنة الأوفلاين -->
     <script>
-        // التحقق الآني من حالة الاتصال
-        function updateOnlineStatus() {
-            const statusDiv = document.getElementById('status');
-            const syncBtn = document.getElementById('sync-btn');
-            
-            if (navigator.onLine) {
-                statusDiv.textContent = 'متصل بالإنترنت (البيانات جاهزة للمزامنة)';
-                statusDiv.className = 'status-bar';
-                syncBtn.style.display = 'block'; // إظهار زر المزامنة عند توفر الإنترنت
-            } else {
-                statusDiv.textContent = 'لا يوجد إنترنت (يعمل على الحفظ المحلي)';
-                statusDiv.className = 'status-bar offline';
-                syncBtn.style.display = 'none'; // إخفاء زر المزامنة بدون إنترنت
-            }
-        }
+        document.addEventListener('DOMContentLoaded', () => {
 
-        window.addEventListener('online', updateOnlineStatus);
-        window.addEventListener('offline', updateOnlineStatus);
+            // ==================== 1. الحالة العامة لقواعد البيانات (State) ====================
+            const STORAGE_KEY = 'offline_sales_queue';
 
-        // دالة فحص الذاكرة عند فتح التطبيق
-        function checkProgress() {
-            for(let i=1; i<=2; i++) {
-                if(localStorage.getItem('lesson_' + i) === 'completed') {
-                    let btn = document.getElementById('btn-' + i);
-                    btn.classList.add('completed');
-                    btn.innerText = '✅ تم الإنجاز محلياً';
-                    btn.disabled = true;
-                    
-                    // فحص حالة المزامنة السحابية
-                    let syncStatusDiv = document.getElementById('sync-status-' + i);
-                    if(localStorage.getItem('lesson_' + i + '_synced') === 'true') {
-                        syncStatusDiv.innerText = '☁️ تمت المزامنة مع السحابة بنجاح';
-                        syncStatusDiv.style.color = '#28a745';
-                    } else {
-                        syncStatusDiv.innerText = '⏳ بانتظار المزامنة السحابية...';
-                        syncStatusDiv.style.color = '#ffc107';
-                    }
-                }
-            }
-            updateOnlineStatus();
-        }
+            let inventory = [
+                { id: 1, name: "طابعة ليزر متعددة الوظائف", category: "مستلزمات مكتبية", price: 1250, stock: 15 },
+                { id: 2, name: "شاشة عرض 4K IPS 27 بوصة", category: "إلكترونيات", price: 1800, stock: 4 },
+                { id: 3, name: "ماكينة إعداد القهوة الذكية", category: "أجهزة منزلية", price: 890, stock: 22 }
+            ];
 
-        // دالة الحفظ المحلي
-        function markCompleted(lessonId) {
-            localStorage.setItem('lesson_' + lessonId, 'completed');
-            checkProgress();
-            alert('تم تشفير وحفظ إنجازك في ذاكرة الجوال بنجاح!');
-        }
+            let accounts = [
+                { id: "ACC-101", name: "شركة الأمل للتجارة", type: "CUSTOMER", balance: 45000 },
+                { id: "ACC-102", name: "مؤسسة الأفق المتقدمة", type: "CUSTOMER", balance: -8500 },
+                { id: "ACC-103", name: "شركة التوريدات العالمية", type: "SUPPLIER", balance: 120000 }
+            ];
 
-        // دالة المزامنة السحابية
-        function syncData() {
-            if(!navigator.onLine) {
-                alert('عذراً، يجب أن تكون متصلاً بالإنترنت لإجراء المزامنة.');
-                return;
+            let totalSyncedSalesAmount = 125000;
+            let totalSyncedSalesCount = 3;
+
+            // ==================== 2. محرك المزامنة وإدارة الأوفلاين (Engine) ====================
+            function getOfflineQueue() {
+                const q = localStorage.getItem(STORAGE_KEY);
+                return q ? JSON.parse(q) : [];
             }
 
-            let syncedCount = 0;
-            for(let i=1; i<=2; i++) {
-                if(localStorage.getItem('lesson_' + i) === 'completed') {
-                    localStorage.setItem('lesson_' + i + '_synced', 'true');
-                    syncedCount++;
-                }
+            function saveOfflineQueue(q) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(q));
+                updateAllViews();
             }
 
-            if(syncedCount > 0) {
-                checkProgress();
-                alert('تمت مزامنة جميع الإنجازات مع السحابة بنجاح! ☁️✅');
-            } else {
-                alert('لا توجد إنجازات جديدة للمزامنة.');
-            }
-        }
-
-        window.onload = checkProgress;
-
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js');
-        }
-    </script>
-</body>
-</html>
-
+            function updateNetworkStatus() {
+                const isOnline = navigator.onLine;
+                const statusDiv = document.getElementById(
