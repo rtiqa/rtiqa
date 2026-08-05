@@ -87,6 +87,19 @@ def format_blueprints(blueprints: Iterable[Any]) -> str:
     return "\n".join(lines)
 
 
+def format_modules(modules: Iterable[Any]) -> str:
+    lines: list[str] = []
+    for item in modules:
+        description = getattr(item, "description", "")
+        module_type = getattr(item, "module_type", "")
+        module_category = getattr(item, "module_category", "")
+        lifecycle_stage = getattr(item, "lifecycle", {}).get("stage", "")
+        lines.append(
+            f"- {item.id} ({item.name}) [{module_type}/{module_category}/{lifecycle_stage}]: {description}"
+        )
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="RTIQA Project Generator CLI",
@@ -95,6 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-definition", default=".rtiqa/project.json", help="Path to the RTIQA project definition file.")
     parser.add_argument("--blueprint-root", default=".rtiqa/blueprints", help="Path to blueprint definitions.")
     parser.add_argument("--template-root", default=".rtiqa/templates", help="Path to template files.")
+    parser.add_argument("--module-root", default=".rtiqa/modules", help="Path to module definitions.")
     parser.add_argument("--output-root", default=".", help="Project output root directory.")
     parser.add_argument("--blueprint", help="ID of the blueprint to execute.")
     parser.add_argument("--inputs", help="JSON payload to provide as blueprint inputs.")
@@ -102,6 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run", action="store_true", help="Validate and render output without writing files.")
     parser.add_argument("--overwrite", action="store_true", help="Allow overwriting existing files during generation.")
     parser.add_argument("--list", action="store_true", help="List available blueprints and exit.")
+    parser.add_argument("--list-modules", action="store_true", help="List discovered modules and exit.")
     parser.add_argument("--log-level", default="INFO", help="Logging level for generator execution.")
     return parser
 
@@ -119,12 +134,23 @@ def main(argv: Optional[list[str]] = None) -> int:
     project_definition_path = Path(args.project_definition)
     blueprint_root = Path(args.blueprint_root)
     template_root = Path(args.template_root)
+    module_root = Path(args.module_root)
     output_root = Path(args.output_root)
 
     if project_definition_path.exists():
         engine = GeneratorEngine.from_project_definition(project_definition_path, logger=logger)
     else:
-        engine = GeneratorEngine.from_paths(blueprint_root, template_root, output_root, logger=logger)
+        engine = GeneratorEngine.from_paths(blueprint_root, template_root, output_root, logger=logger, module_root=module_root)
+
+    if args.list_modules:
+        modules = engine.list_modules()
+        if not modules:
+            logger.info("generator.cli.no_modules", extra={"module_root": str(module_root)})
+            print("No modules found.")
+            return 0
+
+        print(format_modules(modules))
+        return 0
 
     if args.list:
         blueprints = engine.list_blueprints()

@@ -7,7 +7,9 @@ from typing import Any, Dict, List, Optional
 from .blueprint_loader import BlueprintLoader
 from .condition_evaluator import ConditionEvaluator
 from .filesystem_writer import FilesystemWriter
-from .models import Blueprint, FileArtifact, GenerationResult, ProjectDefinition
+from .models import Blueprint, FileArtifact, GenerationResult, ModuleDefinition, ProjectDefinition
+from .module_loader import ModuleLoader
+from .module_validator import ModuleValidator
 from .project_loader import ProjectLoader
 from .template_loader import TemplateLoader
 from .validator import Validator
@@ -27,6 +29,7 @@ class GeneratorEngine:
         validator: Validator,
         writer: FilesystemWriter,
         project_definition: Optional[ProjectDefinition] = None,
+        module_loader: Optional[ModuleLoader] = None,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self.blueprint_loader = blueprint_loader
@@ -34,9 +37,13 @@ class GeneratorEngine:
         self.validator = validator
         self.writer = writer
         self.project_definition = project_definition
+        self.module_loader = module_loader
         self.logger = logger or logging.getLogger(__name__)
         self._blueprints: Dict[str, Blueprint] = {}
+        self._modules: Dict[str, ModuleDefinition] = {}
+        self._module_validator = ModuleValidator()
         self.reload_blueprints()
+        self.reload_modules()
 
     @classmethod
     def from_paths(
@@ -45,6 +52,7 @@ class GeneratorEngine:
         template_root: Path,
         output_root: Path,
         logger: Optional[logging.Logger] = None,
+        module_root: Optional[Path] = None,
     ) -> "GeneratorEngine":
         shared_logger = logger or logging.getLogger(__name__)
         return cls(
@@ -53,6 +61,7 @@ class GeneratorEngine:
             validator=Validator(),
             writer=FilesystemWriter(output_root, logger=shared_logger),
             project_definition=None,
+            module_loader=ModuleLoader(module_root) if module_root is not None else None,
             logger=shared_logger,
         )
 
@@ -66,6 +75,7 @@ class GeneratorEngine:
         shared_logger = logger or logging.getLogger(__name__)
         blueprint_root = Path(project_definition.blueprint_root)
         template_root = Path(project_definition.template_root)
+        module_root = Path(project_definition.module_root)
         output_root = Path(project_definition.output_root)
 
         return cls(
@@ -75,6 +85,7 @@ class GeneratorEngine:
             writer=FilesystemWriter(output_root, logger=shared_logger),
             project_definition=project_definition,
             logger=shared_logger,
+            module_loader=ModuleLoader(module_root),
         )
 
     def reload_blueprints(self) -> None:
@@ -87,8 +98,80 @@ class GeneratorEngine:
             extra={"blueprint_count": len(self._blueprints)},
         )
 
+    def reload_modules(self) -> None:
+        self._modules = {}
+        loader = self.module_loader
+        if loader is None and self.project_definition is not None:
+            loader = ModuleLoader(Path(self.project_definition.module_root))
+
+        if loader is None:
+            return
+
+        self._modules = {module.id: module for module in loader.discover_modules()}
+        self._validate_modules()
+        self._verify_module_dependencies()
+        self.logger.debug(
+            "generator.modules.reload",
+            extra={"module_count": len(self._modules)},
+        )
+
+    def _validate_modules(self) -> None:
+        errors: List[str] = []
+        for module in self._modules.values():
+            validation_errors = self._module_validator.validate(module)
+            errors.extend([f"{module.id}: {message}" for message in validation_errors])
+            errors.extend(self._validate_module_compatibility(module))
+
+        if errors:
+            raise ValueError(f"Module validation failed: {'; '.join(errors)}")
+
+    def _validate_module_compatibility(self, module: ModuleDefinition) -> List[str]:
+        errors: List[str] = []
+        compatibility = module.compatibility
+        engine_version = Version(ENGINE_VERSION)
+
+        requires_engine = compatibility.get("engine")
+        if requires_engine:
+            try:
+                if not self._matches_version(engine_version, requires_engine):
+                    errors.append(
+                        f"Module {module.id} requires engine {requires_engine}, current engine is {ENGINE_VERSION}."
+                    )
+            except ValueError as exc:
+                errors.append(str(exc))
+
+        requires_schema = compatibility.get("schema_version")
+        if requires_schema:
+            try:
+                module_schema_version = Version(module.schema_version)
+                if not self._matches_version(module_schema_version, requires_schema):
+                    errors.append(
+                        f"Module {module.id} requires schema version {requires_schema}, current schema version is {module.schema_version}."
+                    )
+            except ValueError as exc:
+                errors.append(str(exc))
+
+        return errors
+
+    def _verify_module_dependencies(self) -> None:
+        missing = [
+            dep
+            for module in self._modules.values()
+            for dep in module.dependencies
+            if dep not in self._modules
+        ]
+        if missing:
+            raise ValueError(f"Module dependencies not found: {', '.join(sorted(set(missing)))}")
+
+        graph = {module_id: module.dependencies for module_id, module in self._modules.items()}
+        if cycle := self._detect_cycle(graph):
+            raise ValueError(f"Module dependency cycle detected: {' -> '.join(cycle)}")
+
     def list_blueprints(self) -> List[Blueprint]:
         return list(self._blueprints.values())
+
+    def list_modules(self) -> List[ModuleDefinition]:
+        return list(self._modules.values())
 
     def generate(
         self,

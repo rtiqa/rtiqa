@@ -54,6 +54,10 @@ class ProjectLoader:
             self._optional_nonempty_string(payload, "template_root", default=".rtiqa/templates"),
             project_root,
         )
+        module_root = self._resolve_resource_path(
+            self._optional_nonempty_string(payload, "module_root", default=".rtiqa/modules"),
+            project_root,
+        )
         output_root = self._resolve_resource_path(
             self._optional_nonempty_string(payload, "output_root", default="."),
             project_root,
@@ -83,6 +87,7 @@ class ProjectLoader:
             extensions=extensions,
             blueprint_root=blueprint_root,
             template_root=template_root,
+            module_root=module_root,
             output_root=output_root,
             plugins=plugins,
         )
