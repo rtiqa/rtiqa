@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any, Dict, List
 
 from .models import Blueprint, FileArtifact
+from .validator import validate_semantic_version
 
 
 class BlueprintLoader:
@@ -15,14 +15,15 @@ class BlueprintLoader:
         self.blueprint_root = blueprint_root
 
     def discover_blueprints(self) -> List[Blueprint]:
-        blueprints: List[Blueprint] = []
+        blueprints: List[tuple[Blueprint, Path]] = []
         if not self.blueprint_root.exists():
-            return blueprints
+            return []
 
-        for path in sorted(self.blueprint_root.glob("*.json")):
-            blueprints.append(self.load_blueprint(path))
+        for path in sorted(self.blueprint_root.rglob("*.json")):
+            blueprints.append((self.load_blueprint(path), path))
 
-        return blueprints
+        self._check_duplicate_ids(blueprints)
+        return [blueprint for blueprint, _ in blueprints]
 
     def load_blueprint(self, path: Path) -> Blueprint:
         try:
@@ -36,8 +37,8 @@ class BlueprintLoader:
 
         blueprint_id = self._require_string(payload, "id", path)
         name = self._require_string(payload, "name", path)
-        version = self._validate_version(self._require_string(payload, "version", path), path, "version")
-        schema_version = self._validate_version(self._optional_string(payload, "schema_version", default="1.0"), path, "schema_version")
+        version = validate_semantic_version(self._require_string(payload, "version", path), "version", path)
+        schema_version = validate_semantic_version(self._require_string(payload, "schema_version", path), "schema_version", path)
         description = self._optional_string(payload, "description", default="")
         category = self._optional_string(payload, "category", default="")
 
@@ -102,17 +103,29 @@ class BlueprintLoader:
             raise ValueError(f"Blueprint {path} field {key} must be an object.")
         return value
 
-    def _validate_version(self, value: str, path: Path, key: str) -> str:
-        pattern = r"^\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$"
-        if not re.match(pattern, value):
-            raise ValueError(f"Blueprint {path} field {key} must follow semantic version format.")
-        return value
 
     def _optional_list(self, payload: Dict[str, Any], key: str, path: Path) -> List[Dict[str, Any]]:
         value = payload.get(key, [])
         if not isinstance(value, list):
             raise ValueError(f"Blueprint {path} field {key} must be a list.")
         return value
+
+    def _check_duplicate_ids(self, blueprint_entries: List[tuple[Blueprint, Path]]) -> None:
+        duplicates: Dict[str, List[Path]] = {}
+        for blueprint, path in blueprint_entries:
+            duplicates.setdefault(blueprint.id, []).append(path)
+
+        conflict_messages: List[str] = []
+        for blueprint_id, paths in duplicates.items():
+            if len(paths) > 1:
+                conflict_messages.append(
+                    f"{blueprint_id}: {', '.join(str(path) for path in paths)}"
+                )
+
+        if conflict_messages:
+            raise ValueError(
+                f"Duplicate blueprint ids discovered: {'; '.join(conflict_messages)}"
+            )
 
     def _optional_string_list(self, payload: Dict[str, Any], key: str, path: Path) -> List[str]:
         value = payload.get(key, [])

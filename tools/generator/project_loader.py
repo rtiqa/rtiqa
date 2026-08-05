@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +10,7 @@ from .models import (
     PROJECT_LIFECYCLE_STAGES,
     PROJECT_TYPES,
 )
+from .validator import validate_semantic_version
 
 
 class ProjectLoader:
@@ -33,8 +33,8 @@ class ProjectLoader:
 
         project_id = self._require_string(payload, "id", self.project_definition_path)
         name = self._require_string(payload, "name", self.project_definition_path)
-        version = self._validate_version(self._require_string(payload, "version", self.project_definition_path), self.project_definition_path, "version")
-        schema_version = self._validate_version(self._require_string(payload, "schema_version", self.project_definition_path), self.project_definition_path, "schema_version")
+        version = validate_semantic_version(self._require_string(payload, "version", self.project_definition_path), "version", self.project_definition_path)
+        schema_version = validate_semantic_version(self._require_string(payload, "schema_version", self.project_definition_path), "schema_version", self.project_definition_path)
         project_type = self._validate_project_type(self._require_string(payload, "project_type", self.project_definition_path))
         description = self._optional_string(payload, "description", default="")
 
@@ -151,11 +151,6 @@ class ProjectLoader:
             return project_definition_path.parent.parent.resolve()
         return project_definition_path.parent.resolve()
 
-    def _validate_version(self, value: str, path: Path, key: str) -> str:
-        pattern = r"^\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$"
-        if not re.match(pattern, value):
-            raise ValueError(f"Project definition {path} field {key} must follow semantic version format.")
-        return value
 
     def _validate_project_type(self, project_type: str) -> str:
         if project_type not in PROJECT_TYPES:
@@ -180,7 +175,7 @@ class ProjectLoader:
 
         plugin_id = self._require_string(item, "id", path)
         name = self._require_string(item, "name", path)
-        version = self._validate_version(self._require_string(item, "version", path), path, "version")
+        version = validate_semantic_version(self._require_string(item, "version", path), "version", path)
         entrypoint = self._require_string(item, "entrypoint", path)
         description = self._optional_string(item, "description", default="")
         enabled = self._optional_bool(item, "enabled", default=True)

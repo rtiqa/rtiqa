@@ -13,7 +13,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = ["packaging>=23.0"]
 
 [project.scripts]
 rtiqa-generator = "tools.generator.cli:main"
@@ -53,5 +53,6 @@ python_files = [
 ]
 
 testpaths = [
-    "apps"
+    "apps",
+    "tools/generator"
 ]

@@ -1,8 +1,18 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import re
+from pathlib import Path
+from typing import Any, Dict
 
 from .models import ValidationResult
+
+SEMVER_PATTERN = r"^\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$"
+
+
+def validate_semantic_version(value: str, field: str, path: Path) -> str:
+    if not isinstance(value, str) or not re.match(SEMVER_PATTERN, value):
+        raise ValueError(f"{path} field {field} must follow semantic version format.")
+    return value
 
 
 class Validator:

@@ -31,7 +31,10 @@ class TemplateLoader:
 
     def render(self, template_name: str, context: Dict[str, Any]) -> str:
         content = self.load_template(template_name)
-        return content.format_map(StrictFormatDict(context))
+        try:
+            return content.format_map(StrictFormatDict(context))
+        except KeyError as exc:
+            raise ValueError(f"Missing template variable: {exc}") from exc
 
 
 class StrictFormatDict(dict):

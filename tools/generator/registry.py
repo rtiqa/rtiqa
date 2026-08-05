@@ -60,7 +60,6 @@ class GeneratorRegistry:
                 continue
 
             module = importlib.util.module_from_spec(spec)
-            assert spec.loader is not None
             try:
                 spec.loader.exec_module(module)
             except Exception as exc:

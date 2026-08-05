@@ -354,13 +354,13 @@ class GeneratorEngine:
                     missing.append(reference)
         return missing
 
-    def _resolve_blueprint(self, blueprint: Blueprint, visited: Optional[set[str]] = None) -> Blueprint:
+    def _resolve_blueprint(self, blueprint: Blueprint, visited: Optional[List[str]] = None) -> Blueprint:
         if visited is None:
-            visited = set()
+            visited = []
 
         if blueprint.id in visited:
-            raise ValueError(f"Circular blueprint reference detected: {' -> '.join(list(visited) + [blueprint.id])}")
-        visited.add(blueprint.id)
+            raise ValueError(f"Circular blueprint reference detected: {' -> '.join(visited + [blueprint.id])}")
+        visited.append(blueprint.id)
 
         if not blueprint.extends and not blueprint.compose:
             return blueprint
@@ -391,7 +391,7 @@ class GeneratorEngine:
             source = self._blueprints.get(source_name)
             if source is None:
                 raise ValueError(f"Referenced blueprint not found: {source_name}")
-            resolved_source = self._resolve_blueprint(source, set(visited))
+            resolved_source = self._resolve_blueprint(source, list(visited))
             combined = self._merge_blueprints(resolved_source, combined)
 
         return combined

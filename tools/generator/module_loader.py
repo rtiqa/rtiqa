@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -11,6 +10,7 @@ from .models import (
     MODULE_LIFECYCLE_STAGES,
     MODULE_TYPES,
 )
+from .validator import validate_semantic_version
 
 
 class ModuleLoader:
@@ -24,11 +24,12 @@ class ModuleLoader:
         if not self.module_root.exists():
             return modules
 
+        module_entries: List[tuple[ModuleDefinition, Path]] = []
         for path in sorted(self.module_root.rglob("*.json")):
-            modules.append(self.load_module(path))
+            module_entries.append((self.load_module(path), path))
 
-        self._check_duplicate_ids(modules)
-        return modules
+        self._check_duplicate_ids(module_entries)
+        return [module for module, _ in module_entries]
 
     def load_module(self, path: Path) -> ModuleDefinition:
         try:
@@ -42,8 +43,8 @@ class ModuleLoader:
 
         module_id = self._require_string(payload, "id", path)
         name = self._require_string(payload, "name", path)
-        version = self._validate_version(self._require_string(payload, "version", path), path, "version")
-        schema_version = self._validate_version(self._require_string(payload, "schema_version", path), path, "schema_version")
+        version = validate_semantic_version(self._require_string(payload, "version", path), "version", path)
+        schema_version = validate_semantic_version(self._require_string(payload, "schema_version", path), "schema_version", path)
         module_type = self._validate_module_type(self._require_string(payload, "module_type", path), path)
         module_category = self._validate_module_category(self._require_string(payload, "module_category", path), path)
         description = self._optional_string(payload, "description", default="")
@@ -119,11 +120,6 @@ class ModuleLoader:
             raise ValueError(f"Module definition {path} field {key} must be a list of strings.")
         return value
 
-    def _validate_version(self, value: str, path: Path, key: str) -> str:
-        pattern = r"^\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$"
-        if not re.match(pattern, value):
-            raise ValueError(f"Module definition {path} field {key} must follow semantic version format.")
-        return value
 
     def _validate_module_type(self, module_type: str, path: Path) -> str:
         if module_type not in MODULE_TYPES:
@@ -147,16 +143,19 @@ class ModuleLoader:
                     f"Module definition {path} lifecycle.stage must be one of: {', '.join(sorted(MODULE_LIFECYCLE_STAGES))}."
                 )
 
-    def _check_duplicate_ids(self, modules: List[ModuleDefinition]) -> None:
-        seen: Dict[str, Path] = {}
-        duplicates: List[str] = []
-        for module in modules:
-            if module.id in seen:
-                duplicates.append(module.id)
-            else:
-                seen[module.id] = self.module_root
+    def _check_duplicate_ids(self, module_entries: List[tuple[ModuleDefinition, Path]]) -> None:
+        duplicates: Dict[str, List[Path]] = {}
+        for module, path in module_entries:
+            duplicates.setdefault(module.id, []).append(path)
 
-        if duplicates:
+        conflict_messages: List[str] = []
+        for module_id, paths in duplicates.items():
+            if len(paths) > 1:
+                conflict_messages.append(
+                    f"{module_id}: {', '.join(str(path) for path in paths)}"
+                )
+
+        if conflict_messages:
             raise ValueError(
-                f"Duplicate module ids discovered: {', '.join(sorted(set(duplicates)))}"
+                f"Duplicate module ids discovered: {'; '.join(conflict_messages)}"
             )
