@@ -7,7 +7,8 @@ from typing import Any, Dict, List, Optional
 from .blueprint_loader import BlueprintLoader
 from .condition_evaluator import ConditionEvaluator
 from .filesystem_writer import FilesystemWriter
-from .models import Blueprint, FileArtifact, GenerationResult
+from .models import Blueprint, FileArtifact, GenerationResult, ProjectDefinition
+from .project_loader import ProjectLoader
 from .template_loader import TemplateLoader
 from .validator import Validator
 
@@ -25,12 +26,14 @@ class GeneratorEngine:
         template_loader: TemplateLoader,
         validator: Validator,
         writer: FilesystemWriter,
+        project_definition: Optional[ProjectDefinition] = None,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self.blueprint_loader = blueprint_loader
         self.template_loader = template_loader
         self.validator = validator
         self.writer = writer
+        self.project_definition = project_definition
         self.logger = logger or logging.getLogger(__name__)
         self._blueprints: Dict[str, Blueprint] = {}
         self.reload_blueprints()
@@ -49,6 +52,28 @@ class GeneratorEngine:
             template_loader=TemplateLoader(template_root),
             validator=Validator(),
             writer=FilesystemWriter(output_root, logger=shared_logger),
+            project_definition=None,
+            logger=shared_logger,
+        )
+
+    @classmethod
+    def from_project_definition(
+        cls,
+        project_definition_path: Path,
+        logger: Optional[logging.Logger] = None,
+    ) -> "GeneratorEngine":
+        project_definition = ProjectLoader(project_definition_path).load_project_definition()
+        shared_logger = logger or logging.getLogger(__name__)
+        blueprint_root = Path(project_definition.blueprint_root)
+        template_root = Path(project_definition.template_root)
+        output_root = Path(project_definition.output_root)
+
+        return cls(
+            blueprint_loader=BlueprintLoader(blueprint_root),
+            template_loader=TemplateLoader(template_root),
+            validator=Validator(),
+            writer=FilesystemWriter(output_root, logger=shared_logger),
+            project_definition=project_definition,
             logger=shared_logger,
         )
 

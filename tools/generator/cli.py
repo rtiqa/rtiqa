@@ -92,6 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="RTIQA Project Generator CLI",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument("--project-definition", default=".rtiqa/project.json", help="Path to the RTIQA project definition file.")
     parser.add_argument("--blueprint-root", default=".rtiqa/blueprints", help="Path to blueprint definitions.")
     parser.add_argument("--template-root", default=".rtiqa/templates", help="Path to template files.")
     parser.add_argument("--output-root", default=".", help="Project output root directory.")
@@ -115,11 +116,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         extra={"parsed_args": vars(args)},
     )
 
+    project_definition_path = Path(args.project_definition)
     blueprint_root = Path(args.blueprint_root)
     template_root = Path(args.template_root)
     output_root = Path(args.output_root)
 
-    engine = GeneratorEngine.from_paths(blueprint_root, template_root, output_root, logger=logger)
+    if project_definition_path.exists():
+        engine = GeneratorEngine.from_project_definition(project_definition_path, logger=logger)
+    else:
+        engine = GeneratorEngine.from_paths(blueprint_root, template_root, output_root, logger=logger)
 
     if args.list:
         blueprints = engine.list_blueprints()

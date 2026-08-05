@@ -36,6 +36,59 @@ class Blueprint:
     files: List[FileArtifact] = field(default_factory=list)
 
 
+PROJECT_TYPES = {
+    "application",
+    "service",
+    "library",
+    "integration",
+    "platform",
+    "infrastructure",
+}
+
+PROJECT_LIFECYCLE_STAGES = {
+    "concept",
+    "planning",
+    "development",
+    "staging",
+    "production",
+    "maintenance",
+    "retirement",
+}
+
+
+@dataclass
+class PluginDefinition:
+    id: str
+    name: str
+    version: str
+    entrypoint: str
+    enabled: bool = True
+    description: str = ""
+    configuration_schema: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ProjectDefinition:
+    id: str
+    name: str
+    description: str
+    version: str
+    schema_version: str
+    project_type: str
+    application_boundary: Dict[str, Any] = field(default_factory=dict)
+    module_categories: List[str] = field(default_factory=list)
+    service_categories: List[str] = field(default_factory=list)
+    infrastructure_categories: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    lifecycle: Dict[str, Any] = field(default_factory=dict)
+    extensions: Dict[str, Any] = field(default_factory=dict)
+    blueprint_root: Path = Path(".rtiqa/blueprints")
+    template_root: Path = Path(".rtiqa/templates")
+    output_root: Path = Path(".")
+    plugins: List[PluginDefinition] = field(default_factory=list)
+
+
 @dataclass
 class ValidationResult:
     valid: bool
