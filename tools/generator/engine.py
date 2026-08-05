@@ -5,10 +5,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .blueprint_loader import BlueprintLoader
+from .condition_evaluator import ConditionEvaluator
 from .filesystem_writer import FilesystemWriter
 from .models import Blueprint, FileArtifact, GenerationResult
 from .template_loader import TemplateLoader
 from .validator import Validator
+
+from packaging.version import InvalidVersion, Version
+
+ENGINE_VERSION = "1.0.0"
 
 
 class GeneratorEngine:
@@ -49,7 +54,7 @@ class GeneratorEngine:
 
     def reload_blueprints(self) -> None:
         self._blueprints = {
-            blueprint.name: blueprint
+            blueprint.id: blueprint
             for blueprint in self.blueprint_loader.discover_blueprints()
         }
         self.logger.debug(
@@ -85,7 +90,21 @@ class GeneratorEngine:
                 errors=[f"Blueprint {blueprint_name} is unavailable."],
             )
 
-        validation = self.validator.validate(blueprint.schema, inputs)
+        try:
+            resolved_blueprint = self._resolve_blueprint(blueprint)
+            self._verify_dependencies(resolved_blueprint)
+            self._validate_compatibility(resolved_blueprint)
+            self._validate_metadata_schema(resolved_blueprint)
+        except Exception as exc:
+            self.logger.error(
+                "generator.resolve.failure",
+                extra={"blueprint": blueprint_name, "error": str(exc)},
+            )
+            return GenerationResult(success=False, message="Blueprint resolution failed.", errors=[str(exc)])
+
+        merged_inputs = {**resolved_blueprint.variables, **inputs}
+
+        validation = self.validator.validate(resolved_blueprint.schema, merged_inputs)
         if not validation.valid:
             self.logger.warning(
                 "generator.validate.failure",
@@ -94,8 +113,8 @@ class GeneratorEngine:
             return GenerationResult(success=False, message="Input validation failed.", errors=validation.errors)
 
         try:
-            directories = self.writer.create_directories(blueprint.directories, dry_run=dry_run)
-            file_entries = self._render_files(blueprint.files, inputs)
+            directories = self.writer.create_directories(resolved_blueprint.directories, dry_run=dry_run)
+            file_entries = self._render_files(resolved_blueprint.files, merged_inputs, resolved_blueprint.template_map)
             written_files = self.writer.write_files(
                 file_entries,
                 dry_run=dry_run,
@@ -125,13 +144,249 @@ class GeneratorEngine:
             generated_directories=directories,
         )
 
-    def _render_files(self, files: List[FileArtifact], inputs: Dict[str, Any]) -> List[tuple[str, str]]:
+    def _verify_dependencies(self, blueprint: Blueprint) -> None:
+        missing = [name for name in blueprint.dependencies if name not in self._blueprints]
+        if missing:
+            raise ValueError(f"Blueprint dependencies not found: {', '.join(missing)}")
+
+        graph = self._build_dependency_graph(blueprint)
+        missing_references = self._find_missing_references(graph)
+        if missing_references:
+            raise ValueError(f"Blueprint references missing: {', '.join(sorted(missing_references))}")
+
+        if cycle := self._detect_cycle(graph):
+            raise ValueError(f"Dependency cycle detected: {' -> '.join(cycle)}")
+
+    def _validate_compatibility(self, blueprint: Blueprint) -> None:
+        compatibility = blueprint.compatibility
+        engine_version = Version(ENGINE_VERSION)
+
+        requires_engine = compatibility.get("engine")
+        if requires_engine:
+            if not self._matches_version(engine_version, requires_engine):
+                raise ValueError(
+                    f"Blueprint {blueprint.id} requires engine {requires_engine}, current engine is {ENGINE_VERSION}."
+                )
+
+        requires_schema = compatibility.get("schema_version")
+        if requires_schema:
+            blueprint_schema_version = Version(blueprint.schema_version)
+            if not self._matches_version(blueprint_schema_version, requires_schema):
+                raise ValueError(
+                    f"Blueprint {blueprint.id} requires schema version {requires_schema}, current schema version is {blueprint.schema_version}."
+                )
+
+    def _validate_metadata_schema(self, blueprint: Blueprint) -> None:
+        if not blueprint.metadata_schema:
+            return
+
+        validation = self.validator.validate(blueprint.metadata_schema, blueprint.metadata)
+        if not validation.valid:
+            raise ValueError(
+                f"Blueprint {blueprint.id} metadata schema validation failed: {'; '.join(validation.errors)}"
+            )
+
+    def _matches_version(self, version: Version, requirement: str) -> bool:
+        try:
+            if requirement.startswith("^"):
+                base = Version(requirement[1:])
+                return version >= base and version < Version(f"{base.major + 1}.0.0")
+            if requirement.startswith("~"):
+                base = Version(requirement[1:])
+                return version >= base and version < Version(f"{base.major}.{base.minor + 1}.0")
+            return version == Version(requirement)
+        except InvalidVersion:
+            raise ValueError(f"Invalid compatibility version expression: {requirement}")
+
+    def _build_dependency_graph(self, blueprint: Blueprint) -> Dict[str, List[str]]:
+        graph: Dict[str, List[str]] = {}
+
+        def visit(node: Blueprint) -> None:
+            if node.id in graph:
+                return
+            references = [*node.extends, *node.compose, *node.dependencies]
+            graph[node.id] = references
+            for ref in references:
+                if ref in self._blueprints:
+                    visit(self._blueprints[ref])
+                else:
+                    graph.setdefault(node.id, references)
+
+        visit(blueprint)
+        return graph
+
+    def _detect_cycle(self, graph: Dict[str, List[str]]) -> List[str]:
+        visited = set()
+        stack = []
+
+        def dfs(node: str) -> List[str]:
+            if node in stack:
+                return stack[stack.index(node):] + [node]
+            if node in visited:
+                return []
+            visited.add(node)
+            stack.append(node)
+            for neighbor in graph.get(node, []):
+                cycle = dfs(neighbor)
+                if cycle:
+                    return cycle
+            stack.pop()
+            return []
+
+        for node in graph:
+            if cycle := dfs(node):
+                return cycle
+        return []
+
+    def _find_missing_references(self, graph: Dict[str, List[str]]) -> List[str]:
+        missing = []
+        for refs in graph.values():
+            for reference in refs:
+                if reference not in self._blueprints and reference not in missing:
+                    missing.append(reference)
+        return missing
+
+    def _resolve_blueprint(self, blueprint: Blueprint, visited: Optional[set[str]] = None) -> Blueprint:
+        if visited is None:
+            visited = set()
+
+        if blueprint.id in visited:
+            raise ValueError(f"Circular blueprint reference detected: {' -> '.join(list(visited) + [blueprint.id])}")
+        visited.add(blueprint.id)
+
+        if not blueprint.extends and not blueprint.compose:
+            return blueprint
+
+        combined = Blueprint(
+            id=blueprint.id,
+            name=blueprint.name,
+            description=blueprint.description,
+            version=blueprint.version,
+            schema_version=blueprint.schema_version,
+            metadata={**blueprint.metadata},
+            metadata_schema={**blueprint.metadata_schema},
+            compatibility={**blueprint.compatibility},
+            category=blueprint.category,
+            outputs={**blueprint.outputs},
+            schema={**blueprint.schema},
+            variables={**blueprint.variables},
+            conditions=[*blueprint.conditions],
+            dependencies=[*blueprint.dependencies],
+            extends=[*blueprint.extends],
+            compose=[*blueprint.compose],
+            template_map={**blueprint.template_map},
+            directories=[*blueprint.directories],
+            files=[*blueprint.files],
+        )
+
+        for source_name in [*blueprint.extends, *blueprint.compose]:
+            source = self._blueprints.get(source_name)
+            if source is None:
+                raise ValueError(f"Referenced blueprint not found: {source_name}")
+            resolved_source = self._resolve_blueprint(source, set(visited))
+            combined = self._merge_blueprints(resolved_source, combined)
+
+        return combined
+
+    def _merge_blueprints(self, base: Blueprint, overlay: Blueprint) -> Blueprint:
+        merged_schema = self._merge_schema(base.schema, overlay.schema)
+        merged_variables = {**base.variables, **overlay.variables}
+        merged_template_map = {**base.template_map, **overlay.template_map}
+        merged_directories = [*base.directories]
+        for directory in overlay.directories:
+            if directory not in merged_directories:
+                merged_directories.append(directory)
+
+        merged_files: List[FileArtifact] = [*base.files]
+        existing_paths = {item.path for item in merged_files}
+        for item in overlay.files:
+            if item.path in existing_paths:
+                merged_files = [item if existing.path == item.path else existing for existing in merged_files]
+            else:
+                merged_files.append(item)
+
+        merged_metadata = self._deep_merge_metadata(base.metadata, overlay.metadata)
+        merged_compatibility = {**base.compatibility, **overlay.compatibility}
+
+        return Blueprint(
+            id=overlay.id,
+            name=overlay.name,
+            description=overlay.description or base.description,
+            version=overlay.version,
+            schema_version=overlay.schema_version,
+            metadata=merged_metadata,
+            metadata_schema={**base.metadata_schema, **overlay.metadata_schema},
+            compatibility=merged_compatibility,
+            category=overlay.category or base.category,
+            outputs={**base.outputs, **overlay.outputs},
+            schema=merged_schema,
+            variables=merged_variables,
+            conditions=[*base.conditions, *overlay.conditions],
+            dependencies=[*base.dependencies, *overlay.dependencies],
+            extends=[*base.extends, *overlay.extends],
+            compose=[*base.compose, *overlay.compose],
+            template_map=merged_template_map,
+            directories=merged_directories,
+            files=merged_files,
+        )
+
+    def _merge_schema(self, base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, Any]:
+        merged: Dict[str, Any] = {**base}
+        if not overlay:
+            return merged
+
+        def deep_merge(base_value: Any, overlay_value: Any) -> Any:
+            if isinstance(base_value, dict) and isinstance(overlay_value, dict):
+                merged_value = {**base_value}
+                for key, value in overlay_value.items():
+                    merged_value[key] = deep_merge(merged_value.get(key), value) if key in merged_value else value
+                return merged_value
+            return overlay_value
+
+        for section in ["required", "optional"]:
+            base_section = base.get(section, {})
+            overlay_section = overlay.get(section, {})
+            if isinstance(base_section, dict) and isinstance(overlay_section, dict):
+                merged[section] = deep_merge(base_section, overlay_section)
+            else:
+                merged[section] = overlay_section
+
+        return merged
+
+    def _deep_merge_metadata(self, base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, Any]:
+        merged: Dict[str, Any] = {**base}
+        for key, value in overlay.items():
+            if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+                merged[key] = self._deep_merge_metadata(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+
+    def _render_files(
+        self,
+        files: List[FileArtifact],
+        inputs: Dict[str, Any],
+        template_map: Dict[str, str],
+    ) -> List[tuple[str, str]]:
         rendered: List[tuple[str, str]] = []
         for item in files:
-            content = self.template_loader.render(item.template_name, {**inputs, **item.variables})
+            if not self._should_render(item.condition, inputs):
+                self.logger.debug(
+                    "generator.file.skip",
+                    extra={"path": item.path, "condition": item.condition},
+                )
+                continue
+
+            template_name = template_map.get(item.template_name, item.template_name)
+            content = self.template_loader.render(template_name, {**inputs, **item.variables})
             self.logger.debug(
                 "generator.template.render",
-                extra={"template": item.template_name, "path": item.path},
+                extra={"template": template_name, "path": item.path},
             )
             rendered.append((item.path, content))
         return rendered
+
+    def _should_render(self, condition: Optional[str], context: Dict[str, Any]) -> bool:
+        if not condition:
+            return True
+        return ConditionEvaluator().evaluate(condition, context)

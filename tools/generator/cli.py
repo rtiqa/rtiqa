@@ -82,7 +82,8 @@ def format_blueprints(blueprints: Iterable[Any]) -> str:
     lines: list[str] = []
     for item in blueprints:
         description = getattr(item, "description", "")
-        lines.append(f"- {item.name}: {description}")
+        category = getattr(item, "category", "")
+        lines.append(f"- {item.id} ({item.name}) [{category}]: {description}")
     return "\n".join(lines)
 
 
@@ -94,7 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--blueprint-root", default=".rtiqa/blueprints", help="Path to blueprint definitions.")
     parser.add_argument("--template-root", default=".rtiqa/templates", help="Path to template files.")
     parser.add_argument("--output-root", default=".", help="Project output root directory.")
-    parser.add_argument("--blueprint", help="Name of the blueprint to execute.")
+    parser.add_argument("--blueprint", help="ID of the blueprint to execute.")
     parser.add_argument("--inputs", help="JSON payload to provide as blueprint inputs.")
     parser.add_argument("--inputs-file", help="Path to a JSON file containing blueprint inputs.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and render output without writing files.")
@@ -131,7 +132,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0
 
     if not args.blueprint:
-        parser.error("A blueprint name is required unless --list is provided.")
+        parser.error("A blueprint id is required unless --list is provided.")
 
     try:
         inputs = parse_inputs(args.inputs, args.inputs_file)
